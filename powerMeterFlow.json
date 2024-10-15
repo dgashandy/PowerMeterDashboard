@@ -1,0 +1,351 @@
+[
+    {
+        "id": "7510e102d2945624",
+        "type": "tab",
+        "label": "powerMeter-starSchemas",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "404b1b9b7c98cb21",
+        "type": "inject",
+        "z": "7510e102d2945624",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "*/1 0-23 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 360,
+        "wires": [
+            [
+                "ceb3628941f91627",
+                "da9398cc89bcdeb8"
+            ]
+        ]
+    },
+    {
+        "id": "7763cbf035bd7d15",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "4c68cb4aa66bf581",
+        "name": "liveServerPanbil",
+        "x": 600,
+        "y": 360,
+        "wires": [
+            [
+                "29354a9254b10ac8"
+            ]
+        ]
+    },
+    {
+        "id": "da9398cc89bcdeb8",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "retrieve1",
+        "func": "// Create the SQL query to extract the latest data from all tblkwh_01 to tblkwh_16\nmsg.topic = `\n    (SELECT 'tblkwh_01' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_01 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_02' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_02 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_03' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_03 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_04' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_04 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_05' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_05 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_06' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_06 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_07' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_07 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_08' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_08 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_09' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_09 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_10' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_10 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_11' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_11 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_12' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_12 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_13' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_13 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_14' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_14 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_15' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_15 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_16' AS SourceTable, waktu, kwh FROM dbkwh.tblkwh_16 ORDER BY waktu DESC LIMIT 1)\n`;\n\n// Return the message object with the query\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 360,
+        "wires": [
+            [
+                "7763cbf035bd7d15"
+            ]
+        ]
+    },
+    {
+        "id": "29354a9254b10ac8",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "insert1",
+        "func": "// Loop through each row of payload (one per table)\nvar queries = msg.payload.map(row => {\n    var sourceTable = row.SourceTable;\n    var waktu = new Date(row.waktu);\n    var kwhStr = row.kwh;\n\n    // Extract the table number from the sourceTable\n    var tableNumber = sourceTable.match(/\\d+$/)[0]; // Extracts the number part\n\n    // Format the 'waktu' into 'YYYY-MM-DD HH:MM:SS'\n    var year = waktu.getFullYear();\n    var month = ('0' + (waktu.getMonth() + 1)).slice(-2);\n    var day = ('0' + waktu.getDate()).slice(-2);\n    var hours = ('0' + waktu.getHours()).slice(-2);\n    var minutes = ('0' + waktu.getMinutes()).slice(-2);\n    var seconds = ('0' + waktu.getSeconds()).slice(-2);\n    var formattedWaktu = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;\n\n    // Format the date for DateID lookup\n    var formattedDate = `${year}-${month}-${day}`;\n\n    // Calculate TimeID based on the current hour\n    var timeID = parseInt(hours, 10) + 1;\n\n    // Create the SQL query to insert the data into the new table\n    return `\n        INSERT INTO star_schemas_powermeter.powermeterfact \n        (DateID, TimeID, DeviceID, tanggalWaktu, kWh)\n        SELECT \n            dd.DateID,\n            ${timeID},\n            ${tableNumber} AS DeviceID,\n            '${formattedWaktu}',\n            CAST('${kwhStr}' AS UNSIGNED)\n        FROM \n            datedimension dd\n        WHERE \n            dd.TanggalYMD = '${formattedDate}'\n    `;\n});\n\n// Combine all queries into a single message, ensuring proper termination\nmsg.topic = queries.join('; ') + ';';\n\n// Return the message object with the combined queries\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 830,
+        "y": 360,
+        "wires": [
+            [
+                "a9e25debdefaac00"
+            ]
+        ]
+    },
+    {
+        "id": "7c9ff5c38d2c442c",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "8035204f7365e78f",
+        "name": "liveServerGaruda",
+        "x": 610,
+        "y": 440,
+        "wires": [
+            [
+                "7caebef63285b010"
+            ]
+        ]
+    },
+    {
+        "id": "ceb3628941f91627",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "retrieve1",
+        "func": "// Create the SQL query to extract the latest data from all tblkwh_01 to tblkwh_16\nmsg.topic = `\n    (SELECT 'tblkwh_01' AS SourceTable, waktu, kwh FROM db_garuda.tblkwh_01 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_02' AS SourceTable, waktu, kwh FROM db_garuda.tblkwh_02 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_03' AS SourceTable, waktu, kwh FROM db_garuda.tblkwh_03 ORDER BY waktu DESC LIMIT 1)\n    UNION ALL\n    (SELECT 'tblkwh_04' AS SourceTable, waktu, kwh FROM db_garuda.tblkwh_04 ORDER BY waktu DESC LIMIT 1)\n`;\n\n// Return the message object with the query\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 440,
+        "wires": [
+            [
+                "7c9ff5c38d2c442c"
+            ]
+        ]
+    },
+    {
+        "id": "7caebef63285b010",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "insert1",
+        "func": "// Map table numbers to DeviceID\nvar deviceIdMap = {\n    \"01\": 17,\n    \"02\": 18,\n    \"03\": 19,\n    \"04\": 20\n};\n\n// Loop through each row of payload (one per table)\nvar queries = msg.payload.map(row => {\n    var sourceTable = row.SourceTable;\n    var waktu = new Date(row.waktu);\n    var kwhStr = row.kwh;\n\n    // Extract the table number from the sourceTable\n    var tableNumber = sourceTable.match(/\\d+$/)[0]; // Extracts the number part\n\n    // Get the corresponding DeviceID from the map\n    var deviceID = deviceIdMap[tableNumber];\n\n    // Format the 'waktu' into 'YYYY-MM-DD HH:MM:SS'\n    var year = waktu.getFullYear();\n    var month = ('0' + (waktu.getMonth() + 1)).slice(-2);\n    var day = ('0' + waktu.getDate()).slice(-2);\n    var hours = ('0' + waktu.getHours()).slice(-2);\n    var minutes = ('0' + waktu.getMinutes()).slice(-2);\n    var seconds = ('0' + waktu.getSeconds()).slice(-2);\n    var formattedWaktu = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;\n\n    // Format the date for DateID lookup\n    var formattedDate = `${year}-${month}-${day}`;\n\n    // Calculate TimeID based on the current hour\n    var timeID = parseInt(hours, 10) + 1;\n\n    // Create the SQL query to insert the data into the new table\n    return `\n        INSERT INTO star_schemas_powermeter.powermeterfact \n        (DateID, TimeID, DeviceID, tanggalWaktu, kWh)\n        SELECT \n            dd.DateID,\n            ${timeID},\n            ${deviceID} AS DeviceID,\n            '${formattedWaktu}',\n            CAST('${kwhStr}' AS UNSIGNED)\n        FROM \n            datedimension dd\n        WHERE \n            dd.TanggalYMD = '${formattedDate}'\n    `;\n});\n\n// Combine all queries into a single message, ensuring proper termination\nmsg.topic = queries.join('; ') + ';';\n\n// Return the message object with the combined queries\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 850,
+        "y": 440,
+        "wires": [
+            [
+                "a9e25debdefaac00"
+            ]
+        ]
+    },
+    {
+        "id": "a9e25debdefaac00",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "4c68cb4aa66bf581",
+        "name": "liveServerPanbil",
+        "x": 1040,
+        "y": 360,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a5f745b50e745145",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "a91589aac62543d8",
+        "name": "liveServerPanbil",
+        "x": 680,
+        "y": 580,
+        "wires": [
+            [
+                "f3218413868c0cee"
+            ]
+        ]
+    },
+    {
+        "id": "0ffdbf63ab15cec5",
+        "type": "inject",
+        "z": "7510e102d2945624",
+        "name": "Set Parameters",
+        "props": [
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 200,
+        "y": 580,
+        "wires": [
+            [
+                "5e9ae6839daf29ed",
+                "4af9d86568a1d6ae"
+            ]
+        ]
+    },
+    {
+        "id": "199e7a5eb5224e98",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "4c68cb4aa66bf581",
+        "name": "liveServerPanbil",
+        "x": 1100,
+        "y": 580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5e9ae6839daf29ed",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "Call Stored Procedure",
+        "func": "msg.topic = `\n    CALL dbkwh.spInsertToStarSchemasPowerMeter('2024-10-14', '2024-10-14');\n`;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 460,
+        "y": 580,
+        "wires": [
+            [
+                "a5f745b50e745145"
+            ]
+        ]
+    },
+    {
+        "id": "f3218413868c0cee",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "insert1",
+        "func": "var data = Array.isArray(msg.payload[0]) ? msg.payload[0] : msg.payload;\n// node.warn(`Flattened Payload: ${JSON.stringify(data)}`);\n\nvar queries = data.map(row => {\n    var sourceTable = row.SourceTable;\n    var waktu = new Date(row.waktu);\n    var kwhStr = row.kwh;\n\n    if (!sourceTable || !kwhStr) {\n        node.warn(`Skipping row due to missing data - SourceTable: ${sourceTable}, kwh: ${kwhStr}`);\n        return null; // Skip this row\n    }\n\n    if (typeof sourceTable === 'string' && sourceTable.match(/\\d+$/)) {\n        var tableNumber = sourceTable.match(/\\d+$/)[0]; // Extracts the number part\n    } else {\n        node.warn(`Skipping row due to invalid SourceTable format - SourceTable: ${sourceTable}`);\n        return null;\n    }\n\n    // Check if waktu is a valid date\n    if (isNaN(waktu.getTime())) {\n        node.warn(`Skipping row due to invalid date - waktu: ${row.waktu}`);\n        return null; \n    }\n\n    var year = waktu.getFullYear();\n    var month = ('0' + (waktu.getMonth() + 1)).slice(-2);\n    var day = ('0' + waktu.getDate()).slice(-2);\n    var hours = ('0' + waktu.getHours()).slice(-2);\n    var minutes = ('0' + waktu.getMinutes()).slice(-2);\n    var seconds = ('0' + waktu.getSeconds()).slice(-2);\n    var formattedWaktu = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;\n\n    var formattedDate = `${year}-${month}-${day}`;\n\n    var timeID = parseInt(hours, 10) + 1;\n\n    return `\n        INSERT INTO star_schemas_powermeter.powermeterfact \n        (DateID, TimeID, DeviceID, tanggalWaktu, kWh)\n        SELECT \n            dd.DateID,\n            ${timeID},\n            ${tableNumber} AS DeviceID,\n            '${formattedWaktu}',\n            CAST('${kwhStr}' AS UNSIGNED)\n        FROM \n            datedimension dd\n        WHERE \n            dd.TanggalYMD = '${formattedDate}'\n    `;\n});\n\nqueries = queries.filter(query => query !== null);\n\n// Ensure there are queries to run\nif (queries.length === 0) {\n    node.warn('No valid queries to execute');\n    return null;\n}\nmsg.topic = queries.join('; ') + ';';\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 580,
+        "wires": [
+            [
+                "199e7a5eb5224e98"
+            ]
+        ]
+    },
+    {
+        "id": "5344a9734de301ae",
+        "type": "mysql",
+        "z": "7510e102d2945624",
+        "mydb": "8035204f7365e78f",
+        "name": "liveServerGaruda",
+        "x": 710,
+        "y": 660,
+        "wires": [
+            [
+                "93f2f5b619f37921"
+            ]
+        ]
+    },
+    {
+        "id": "4af9d86568a1d6ae",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "Call Stored Procedure",
+        "func": "msg.topic = `\n    CALL db_garuda.spInsertToStarSchemasPowerMeterGaruda('2024-10-14', '2024-10-14');\n`;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 460,
+        "y": 660,
+        "wires": [
+            [
+                "5344a9734de301ae"
+            ]
+        ]
+    },
+    {
+        "id": "93f2f5b619f37921",
+        "type": "function",
+        "z": "7510e102d2945624",
+        "name": "insert1",
+        "func": "// Device ID mapping for 01 to 04 into 17 to 20\nvar deviceIdMap = {\n    \"01\": 17,\n    \"02\": 18,\n    \"03\": 19,\n    \"04\": 20\n};\n\nvar data = Array.isArray(msg.payload[0]) ? msg.payload[0] : msg.payload;\n\n// node.warn(`Flattened Payload: ${JSON.stringify(data)}`);\n\nvar queries = data.map(row => {\n    var sourceTable = row.SourceTable;\n    var waktu = new Date(row.waktu);\n    var kwhStr = row.kwh;\n\n    if (!sourceTable || !kwhStr) {\n        node.warn(`Skipping row due to missing data - SourceTable: ${sourceTable}, kwh: ${kwhStr}`);\n        return null; // Skip this row\n    }\n\n    var tableNumber = sourceTable.match(/\\d+$/)[0];\n    if (deviceIdMap.hasOwnProperty(tableNumber)) {\n        tableNumber = deviceIdMap[tableNumber]; \n    }\n\n    if (isNaN(waktu.getTime())) {\n        node.warn(`Skipping row due to invalid date - waktu: ${row.waktu}`);\n        return null; // Skip the row if the date is invalid\n    }\n\n    var year = waktu.getFullYear();\n    var month = ('0' + (waktu.getMonth() + 1)).slice(-2);\n    var day = ('0' + waktu.getDate()).slice(-2);\n    var hours = ('0' + waktu.getHours()).slice(-2);\n    var minutes = ('0' + waktu.getMinutes()).slice(-2);\n    var seconds = ('0' + waktu.getSeconds()).slice(-2);\n    var formattedWaktu = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;\n\n    var formattedDate = `${year}-${month}-${day}`;\n    var timeID = parseInt(hours, 10) + 1;\n\n    return `\n        INSERT INTO star_schemas_powermeter.powermeterfact \n        (DateID, TimeID, DeviceID, tanggalWaktu, kWh)\n        SELECT \n            dd.DateID,\n            ${timeID},\n            ${tableNumber} AS DeviceID,\n            '${formattedWaktu}',\n            CAST('${kwhStr}' AS UNSIGNED)\n        FROM \n            datedimension dd\n        WHERE \n            dd.TanggalYMD = '${formattedDate}'\n    `;\n});\n\nqueries = queries.filter(query => query !== null);\n\nif (queries.length === 0) {\n    node.warn('No valid queries to execute');\n    return null; // Return if there are no valid queries\n}\n\nmsg.topic = queries.join('; ') + ';';\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 660,
+        "wires": [
+            [
+                "199e7a5eb5224e98"
+            ]
+        ]
+    },
+    {
+        "id": "aa191a36685959bc",
+        "type": "comment",
+        "z": "7510e102d2945624",
+        "name": "Manually Insert Data",
+        "info": "",
+        "x": 190,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "f253309e9e4e67c0",
+        "type": "comment",
+        "z": "7510e102d2945624",
+        "name": "Hourly Insert Data",
+        "info": "",
+        "x": 170,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "4c68cb4aa66bf581",
+        "type": "MySQLdatabase",
+        "name": "KWH",
+        "host": "10.38.11.3",
+        "port": "3306",
+        "db": "star_schemas_powermeter",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "8035204f7365e78f",
+        "type": "MySQLdatabase",
+        "name": "liveServerGaruda",
+        "host": "10.38.11.3",
+        "port": "3306",
+        "db": "db_garuda",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "a91589aac62543d8",
+        "type": "MySQLdatabase",
+        "name": "dbkwh",
+        "host": "10.38.11.3",
+        "port": "3306",
+        "db": "dbkwh",
+        "tz": "",
+        "charset": "UTF8"
+    }
+]
